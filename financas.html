@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finanças de Boa</title>
+    
+    <!-- Configurações para iPhone (Web App) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Finanças">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Plus+Jakarta+Sans', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-primary {
+            background-color: #ec4899;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:active { transform: scale(0.95); opacity: 0.9; }
+
+        .btn-secondary {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .nav-active { color: #ec4899 !important; font-weight: 700; }
+        
+        .modal-enter { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .advice-box {
+            background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+            border: 1px solid #f9a8d4;
+        }
+
+        /* Ajuste para notch do iPhone */
+        header { padding-top: env(safe-area-inset-top); }
+        nav { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- Tela de Bloqueio -->
+    <div id="lock-screen" class="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center p-6 hidden">
+        <div class="text-center space-y-4 max-w-xs w-full">
+            <div class="bg-pink-100 text-pink-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="lock" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-2xl font-bold">Bem-vinda!</h2>
+            <input type="password" id="unlock-pass" class="w-full border-2 border-gray-200 p-4 rounded-2xl text-center text-2xl outline-none focus:border-pink-400" placeholder="PIN" inputmode="numeric">
+            <button onclick="unlockApp()" class="w-full btn-primary py-4 rounded-2xl font-bold shadow-lg">Entrar</button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="p-6 bg-white border-b sticky top-0 z-50">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">Finanças de Boa ✨</h1>
+                <p class="text-xs text-gray-500" id="header-subtitle">Carregando...</p>
+            </div>
+            <button onclick="toggleView('settings')" class="p-2 text-gray-400 hover:text-pink-500">
+                <i data-lucide="user-circle"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-4 space-y-6">
+
+        <!-- DASHBOARD -->
+        <section id="view-home" class="space-y-6">
+            <div class="glass-card rounded-3xl p-6 text-center border-b-4 border-pink-100">
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo Atual</p>
+                <h2 class="text-4xl font-extrabold text-gray-900 my-2" id="total-balance">R$ 0,00</h2>
+                <div class="flex justify-between mt-6 pt-6 border-t border-gray-50">
+                    <div class="text-emerald-600">
+                        <span class="text-[10px] uppercase font-bold opacity-60">Entradas</span>
+                        <span class="block text-lg font-bold" id="total-income">R$ 0,00</span>
+                    </div>
+                    <div class="text-rose-600">
+                        <span class="text-[10px] uppercase font-bold opacity-60">Gastos</span>
+                        <span class="block text-lg font-bold" id="total-expense">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Evolução Dinâmica -->
+            <div id="evolution-container" class="glass-card rounded-3xl p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-800">Evolução dos Gastos</h3>
+                    <select id="period-filter" onchange="updateEvolutionChart()" class="text-xs font-bold bg-gray-50 p-2 rounded-xl border-none outline-none">
+                        <option value="day">Últimos 7 dias</option>
+                        <option value="month">Últimos meses</option>
+                    </select>
+                </div>
+                <div class="relative h-[200px]">
+                    <canvas id="evolutionChart"></canvas>
+                </div>
+                <div id="chart-details" class="mt-4 p-4 bg-gray-50 rounded-2xl hidden">
+                    <p class="text-xs font-bold text-gray-400 uppercase mb-2" id="details-label">Detalhes do dia</p>
+                    <div id="details-list" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Empty State do Gráfico -->
+            <div id="chart-empty" class="p-10 text-center border-2 border-dashed border-gray-200 rounded-3xl">
+                <div class="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="bar-chart" class="text-gray-400 w-6 h-6"></i>
+                </div>
+                <p class="text-sm text-gray-500">Adicione seu primeiro gasto para ver o gráfico de evolução!</p>
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="openModal('expense')" class="flex-1 btn-primary font-bold py-5 rounded-3xl shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="minus-circle"></i> Gasto
+                </button>
+                <button onclick="openModal('income')" class="flex-1 btn-secondary font-bold py-5 rounded-3xl shadow-lg flex items-center justify-center gap-2">
+                    <i data-lucide="plus-circle"></i> Entrada
+                </button>
+            </div>
+        </section>
+
+        <!-- EXTRATO -->
+        <section id="view-list" class="hidden space-y-4">
+            <h3 class="text-lg font-bold text-gray-800">Histórico por Categoria</h3>
+            <div id="category-list" class="space-y-4"></div>
+        </section>
+
+        <!-- PLANEJAMENTO (FUTURO) -->
+        <section id="view-future" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800">Planejamento Futuro</h3>
+                <button onclick="openFutureModal()" class="text-indigo-600 text-sm font-bold">+ Agendar Gasto</button>
+            </div>
+            
+            <div id="future-list" class="space-y-3"></div>
+        </section>
+
+        <!-- METAS -->
+        <section id="view-goals" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800">Minhas Metas</h3>
+                <button onclick="openGoalModal()" class="btn-primary px-4 py-2 rounded-xl text-sm font-bold">
+                    + Nova
+                </button>
+            </div>
+            <div id="goals-container" class="space-y-4"></div>
+        </section>
+
+        <!-- IA (IMPORTAR E CONSELHOS) -->
+        <section id="view-import" class="hidden space-y-6">
+            <!-- Conselheiro IA -->
+            <div class="bg-pink-50 p-6 rounded-3xl border border-pink-100">
+                <h3 class="font-bold text-pink-800 flex items-center gap-2">
+                    <i data-lucide="sparkles"></i> Conselheiro de IA
+                </h3>
+                <p class="text-sm text-pink-600 mt-2">Vou analisar seus ganhos e gastos recentes para te dar dicas personalizadas.</p>
+                <button onclick="generateFinancialAdvice()" class="w-full mt-4 bg-pink-600 text-white font-bold py-4 rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all hover:bg-pink-700">
+                    <span id="advice-btn-text">Analisar minha Saúde Financeira</span>
+                    <div id="advice-loader" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                </button>
+                
+                <div id="advice-result" class="hidden mt-4 p-4 rounded-2xl advice-box text-sm text-pink-900 leading-relaxed italic">
+                    <!-- Resultado da IA -->
+                </div>
+            </div>
+
+            <div class="bg-indigo-50 p-6 rounded-3xl border border-indigo-100">
+                <h3 class="font-bold text-indigo-800 flex items-center gap-2">
+                    <i data-lucide="upload-cloud"></i> Importar Texto
+                </h3>
+                <textarea id="import-input" class="w-full mt-4 h-32 p-4 rounded-2xl border-2 border-indigo-200 outline-none text-sm" placeholder="Cole o extrato aqui..."></textarea>
+                <button onclick="processMagicImport()" class="w-full mt-4 bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-md flex items-center justify-center gap-2">
+                    <span id="import-btn-text">Importar Lançamentos</span>
+                    <div id="import-loader" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                </button>
+            </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="view-settings" class="hidden space-y-6">
+            <div class="glass-card rounded-3xl p-6 text-center">
+                <h3 id="display-user-name" class="text-xl font-bold text-gray-800">Usuária</h3>
+                <p id="display-last-access" class="text-xs text-gray-400 mt-1">Último acesso: --</p>
+            </div>
+            <div class="glass-card rounded-3xl p-6 space-y-4">
+                <input type="text" id="set-user-name" class="w-full border-b py-2 outline-none text-sm" placeholder="Nome">
+                <input type="password" id="set-user-pass" class="w-full border-b py-2 outline-none text-sm" placeholder="PIN de Acesso" inputmode="numeric">
+                <button onclick="saveUserSettings()" class="w-full btn-primary py-3 rounded-xl font-bold">Salvar Dados</button>
+            </div>
+            <p class="text-[10px] text-center text-gray-400">Versão Offline - Seus dados ficam no seu celular.</p>
+        </section>
+
+    </main>
+
+    <!-- Navegação -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-3 pb-10 max-w-md mx-auto z-[60]">
+        <button onclick="toggleView('home')" class="nav-btn nav-active flex flex-col items-center gap-1">
+            <i data-lucide="home"></i><span class="text-[10px]">Home</span>
+        </button>
+        <button onclick="toggleView('list')" class="nav-btn text-gray-400 flex flex-col items-center gap-1">
+            <i data-lucide="receipt"></i><span class="text-[10px]">Extrato</span>
+        </button>
+        <button onclick="toggleView('future')" class="nav-btn text-gray-400 flex flex-col items-center gap-1">
+            <i data-lucide="calendar-clock"></i><span class="text-[10px]">Futuro</span>
+        </button>
+        <button onclick="toggleView('goals')" class="nav-btn text-gray-400 flex flex-col items-center gap-1">
+            <i data-lucide="target"></i><span class="text-[10px]">Metas</span>
+        </button>
+        <button onclick="toggleView('import')" class="nav-btn text-gray-400 flex flex-col items-center gap-1">
+            <i data-lucide="sparkles"></i><span class="text-[10px]">IA</span>
+        </button>
+    </nav>
+
+    <!-- MODAL REGISTRO -->
+    <div id="modal-transaction" class="fixed inset-0 bg-black/40 hidden z-[100] flex items-end justify-center p-0">
+        <div class="bg-white w-full max-w-sm rounded-t-[40px] p-8 space-y-6 modal-enter">
+            <div class="flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-xl">Novo Registro</h3>
+                <button onclick="closeModal()" class="text-gray-300"><i data-lucide="x"></i></button>
+            </div>
+            <div class="space-y-4">
+                <input type="number" id="input-amount" step="0.01" class="w-full text-4xl font-black outline-none border-b-2 py-2" placeholder="0,00" inputmode="decimal">
+                <input type="text" id="input-desc" class="w-full border-b py-3 outline-none" placeholder="O que foi?">
+                <select id="input-cat" class="w-full border-b py-3 outline-none bg-transparent"></select>
+                <button onclick="saveTransaction()" class="w-full btn-primary py-5 rounded-3xl font-bold text-lg shadow-xl">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PLANEJAMENTO FUTURO -->
+    <div id="modal-future" class="fixed inset-0 bg-black/40 hidden z-[100] flex items-end justify-center p-0">
+        <div class="bg-white w-full max-w-sm rounded-t-[40px] p-8 space-y-6 modal-enter">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-xl">Agendar Gasto 📅</h3>
+                <button onclick="closeFutureModal()" class="text-gray-300"><i data-lucide="x"></i></button>
+            </div>
+            <div class="space-y-4">
+                <input type="date" id="future-date" class="w-full border-b py-3 outline-none font-bold">
+                <input type="number" id="future-amount" step="0.01" class="w-full text-2xl font-black outline-none border-b py-2" placeholder="Valor R$" inputmode="decimal">
+                <input type="text" id="future-desc" class="w-full border-b py-3 outline-none" placeholder="Descrição">
+                <button onclick="saveFutureTransaction()" class="w-full bg-indigo-600 text-white py-5 rounded-3xl font-bold shadow-lg">Agendar e Criar Alerta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL METAS -->
+    <div id="modal-goal" class="fixed inset-0 bg-black/40 hidden z-[100] flex items-end justify-center p-0">
+        <div class="bg-white w-full max-w-sm rounded-t-[40px] p-8 space-y-6 modal-enter">
+            <div class="flex justify-between items-center">
+                <h3 id="goal-modal-title" class="font-bold text-xl">Meta</h3>
+                <button onclick="closeGoalModal()" class="text-gray-300"><i data-lucide="x"></i></button>
+            </div>
+            <div class="space-y-4">
+                <input type="hidden" id="goal-id">
+                <input type="text" id="goal-title" class="w-full border-b py-3 outline-none text-lg" placeholder="Nome">
+                <input type="number" id="goal-target" class="w-full border-b py-3 outline-none font-bold" placeholder="Total R$" inputmode="decimal">
+                <input type="number" id="goal-current" class="w-full border-b py-3 outline-none font-bold" placeholder="Guardado R$" inputmode="decimal">
+                <div class="flex gap-2 pt-4">
+                    <button id="btn-delete-goal" onclick="deleteGoal()" class="hidden flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-bold">Apagar</button>
+                    <button onclick="saveGoal()" class="flex-[2] btn-primary py-4 rounded-2xl font-bold shadow-lg">Salvar Meta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; // Chave injetada no ambiente
+        let transactions = JSON.parse(localStorage.getItem('fdb_transactions')) || [];
+        let futureTxs = JSON.parse(localStorage.getItem('fdb_future')) || [];
+        let goals = JSON.parse(localStorage.getItem('fdb_goals')) || [{ id: 1, title: 'Reserva de Emergência', target: 5000, current: 500 }];
+        let userSettings = JSON.parse(localStorage.getItem('fdb_user')) || { name: 'Usuária', password: '', lastAccess: null };
+
+        let chartEvolution = null;
+        let currentType = 'expense';
+
+        window.onload = () => {
+            lucide.createIcons();
+            if (userSettings.password) {
+                document.getElementById('lock-screen').classList.remove('hidden');
+            } else {
+                completeLogin();
+            }
+            loadSettingsToUI();
+        };
+
+        function completeLogin() {
+            document.getElementById('lock-screen').classList.add('hidden');
+            userSettings.lastAccess = new Date().toISOString();
+            localStorage.setItem('fdb_user', JSON.stringify(userSettings));
+            updateUI();
+        }
+
+        function unlockApp() {
+            if (document.getElementById('unlock-pass').value === userSettings.password) completeLogin();
+            else alert('Ops! PIN errado. 😅');
+        }
+
+        function toggleView(view) {
+            ['home', 'list', 'goals', 'import', 'settings', 'future'].forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+            });
+            document.getElementById(`view-${view}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.replace('text-pink-500', 'text-gray-400'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active'));
+            
+            const navs = ['home', 'list', 'future', 'goals', 'import'];
+            const idx = navs.indexOf(view);
+            if(idx !== -1) {
+                document.querySelectorAll('.nav-btn')[idx].classList.add('nav-active');
+            }
+
+            if(view === 'home') updateUI();
+            if(view === 'list') renderCategoryTables();
+            if(view === 'goals') renderGoals();
+            if(view === 'future') renderFuture();
+        }
+
+        function updateUI() {
+            const income = transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
+            const expense = transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+            
+            document.getElementById('total-balance').innerText = formatCurrency(income - expense);
+            document.getElementById('total-income').innerText = formatCurrency(income);
+            document.getElementById('total-expense').innerText = formatCurrency(expense);
+
+            updateEvolutionChart();
+        }
+
+        function updateEvolutionChart() {
+            const expenses = transactions.filter(t => t.amount < 0);
+            const container = document.getElementById('evolution-container');
+            const empty = document.getElementById('chart-empty');
+            
+            if (expenses.length === 0) {
+                container.classList.add('hidden');
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            empty.classList.add('hidden');
+
+            const filter = document.getElementById('period-filter').value;
+            const ctx = document.getElementById('evolutionChart').getContext('2d');
+            
+            let groups = {};
+            expenses.forEach(t => {
+                const dateKey = new Date(t.date).toLocaleDateString('pt-BR');
+                if (!groups[dateKey]) groups[dateKey] = [];
+                groups[dateKey].push(t);
+            });
+
+            const labels = Object.keys(groups).sort((a,b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-'))).slice(-7);
+            const data = labels.map(l => groups[l].reduce((acc, i) => acc + Math.abs(i.amount), 0));
+
+            if (chartEvolution) chartEvolution.destroy();
+
+            chartEvolution = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Gasto R$',
+                        data: data,
+                        backgroundColor: '#ec4899',
+                        borderRadius: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { display: false }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false } },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            showChartDetails(labels[index], groups[labels[index]]);
+                        }
+                    }
+                }
+            });
+        }
+
+        function showChartDetails(date, items) {
+            const box = document.getElementById('chart-details');
+            const list = document.getElementById('details-list');
+            document.getElementById('details-label').innerText = `Gastos em ${date}`;
+            box.classList.remove('hidden');
+            list.innerHTML = items.map(i => `
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-600 font-medium">${i.desc}</span>
+                    <span class="font-bold text-rose-500">${formatCurrency(Math.abs(i.amount))}</span>
+                </div>
+            `).join('');
+            box.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        // IA: CONSELHOS FINANCEIROS
+        async function generateFinancialAdvice() {
+            const btnText = document.getElementById('advice-btn-text');
+            const loader = document.getElementById('advice-loader');
+            const resultBox = document.getElementById('advice-result');
+
+            if (transactions.length < 3) {
+                alert('Mami, preciso de pelo menos uns 3 registros para te dar um conselho de verdade! 😊');
+                return;
+            }
+
+            btnText.innerText = "IA Analisando...";
+            loader.classList.remove('hidden');
+            resultBox.classList.add('hidden');
+
+            const income = transactions.filter(t => t.amount > 0).reduce((acc, t) => acc + t.amount, 0);
+            const expense = transactions.filter(t => t.amount < 0).reduce((acc, t) => acc + Math.abs(t.amount), 0);
+            const cats = {};
+            transactions.filter(t => t.amount < 0).forEach(t => cats[t.category] = (cats[t.category] || 0) + Math.abs(t.amount));
+            const mainGoal = goals[0] ? `${goals[0].title} (${Math.round((goals[0].current/goals[0].target)*100)}% concluída)` : 'sem metas ativas';
+
+            const summary = `Receita: R$ ${income}, Gasto: R$ ${expense}, Categorias: ${JSON.stringify(cats)}, Meta: ${mainGoal}`;
+
+            const sysPrompt = `Você é uma mentora financeira gentil para mulheres de humanas. Dê 3 dicas curtas e práticas em até 5 linhas. Use emojis.`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `Analise: ${summary}` }] }],
+                        systemInstruction: { parts: [{ text: sysPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const advice = data.candidates?.[0]?.content?.parts?.[0]?.text || "Tente novamente em instantes!";
+                resultBox.innerText = advice;
+                resultBox.classList.remove('hidden');
+            } catch (error) {
+                alert('A IA precisa de internet e de uma chave de API válida para funcionar fora do Canvas!');
+            } finally {
+                btnText.innerText = "Analisar minha Saúde Financeira";
+                loader.classList.add('hidden');
+            }
+        }
+
+        // PLANEJAMENTO FUTURO
+        function openFutureModal() { document.getElementById('modal-future').classList.remove('hidden'); }
+        function closeFutureModal() { document.getElementById('modal-future').classList.add('hidden'); }
+
+        function saveFutureTransaction() {
+            const date = document.getElementById('future-date').value;
+            const amount = parseFloat(document.getElementById('future-amount').value);
+            const desc = document.getElementById('future-desc').value;
+            if (!date || !amount || !desc) return;
+            futureTxs.push({ id: Date.now(), date, amount, desc });
+            localStorage.setItem('fdb_future', JSON.stringify(futureTxs));
+            if (confirm(`Gasto agendado! Quer salvar o lembrete?`)) addToCalendar({desc, date, amount});
+            closeFutureModal();
+            renderFuture();
+        }
+
+        function renderFuture() {
+            const container = document.getElementById('future-list');
+            container.innerHTML = futureTxs.length === 0 ? '<p class="text-center text-gray-400 py-10 text-sm italic">Nada agendado por enquanto.</p>' : '';
+            futureTxs.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(tx => {
+                container.innerHTML += `
+                    <div class="glass-card p-4 rounded-2xl flex justify-between items-center">
+                        <div>
+                            <p class="text-[10px] font-bold text-indigo-500 uppercase">${new Date(tx.date).toLocaleDateString('pt-BR')}</p>
+                            <p class="font-bold text-gray-800">${tx.desc}</p>
+                        </div>
+                        <div class="text-right flex flex-col items-end gap-1">
+                            <span class="font-bold">${formatCurrency(tx.amount)}</span>
+                            <div class="flex gap-2">
+                                <button onclick="addToCalendar({desc:'${tx.desc}', date:'${tx.date}', amount:${tx.amount}})" class="text-gray-400 p-2"><i data-lucide="calendar" class="w-4 h-4"></i></button>
+                                <button onclick="deleteFuture(${tx.id})" class="text-rose-300 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            lucide.createIcons();
+        }
+
+        function deleteFuture(id) {
+            futureTxs = futureTxs.filter(f => f.id !== id);
+            localStorage.setItem('fdb_future', JSON.stringify(futureTxs));
+            renderFuture();
+        }
+
+        function addToCalendar(item) {
+            const dateStr = item.date.replace(/-/g, '');
+            const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nDTSTART:${dateStr}T090000Z\nDTEND:${dateStr}T100000Z\nSUMMARY:Pagar ${item.desc}\nDESCRIPTION:R$ ${item.amount}\nEND:VEVENT\nEND:VCALENDAR`;
+            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `lembrete_${item.desc}.ics`;
+            link.click();
+        }
+
+        // METAS
+        function renderGoals() {
+            const container = document.getElementById('goals-container');
+            container.innerHTML = '';
+            goals.forEach(goal => {
+                const percent = Math.min(100, (goal.current / goal.target) * 100);
+                container.innerHTML += `
+                    <div class="glass-card rounded-3xl p-5 space-y-3 relative">
+                        <button onclick="openGoalModal(${JSON.stringify(goal).replace(/"/g, '&quot;')})" class="absolute top-4 right-4 text-gray-300 hover:text-pink-500 p-2">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                        <span class="font-bold text-gray-800">${goal.title}</span>
+                        <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-pink-500 transition-all duration-500" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs font-bold text-gray-400">
+                            <span>${formatCurrency(goal.current)}</span>
+                            <span>Alvo: ${formatCurrency(goal.target)}</span>
+                        </div>
+                    </div>`;
+            });
+            lucide.createIcons();
+        }
+
+        function openGoalModal(goal = null) {
+            document.getElementById('goal-id').value = goal ? goal.id : "";
+            document.getElementById('goal-title').value = goal ? goal.title : "";
+            document.getElementById('goal-target').value = goal ? goal.target : "";
+            document.getElementById('goal-current').value = goal ? goal.current : "";
+            document.getElementById('btn-delete-goal').classList.toggle('hidden', !goal);
+            document.getElementById('modal-goal').classList.remove('hidden');
+        }
+
+        function saveGoal() {
+            const id = document.getElementById('goal-id').value;
+            const goal = { id: id || Date.now(), title: document.getElementById('goal-title').value, target: parseFloat(document.getElementById('goal-target').value), current: parseFloat(document.getElementById('goal-current').value) || 0 };
+            if (!goal.title || !goal.target) return;
+            if (id) { const idx = goals.findIndex(g => g.id == id); goals[idx] = goal; } else { goals.push(goal); }
+            localStorage.setItem('fdb_goals', JSON.stringify(goals));
+            document.getElementById('modal-goal').classList.add('hidden');
+            renderGoals();
+        }
+
+        function deleteGoal() {
+            goals = goals.filter(g => g.id != document.getElementById('goal-id').value);
+            localStorage.setItem('fdb_goals', JSON.stringify(goals));
+            document.getElementById('modal-goal').classList.add('hidden');
+            renderGoals();
+        }
+
+        // HELPERS
+        function formatCurrency(val) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val); }
+        function openModal(type) {
+            currentType = type;
+            document.getElementById('modal-title').innerText = type === 'expense' ? 'Gasto' : 'Entrada';
+            document.getElementById('input-cat').innerHTML = (type === 'expense' ? ['Alimentação', 'Casa', 'Saúde', 'Lazer', 'Transporte', 'Outros'] : ['Salário', 'Transferência', 'Extras', 'Investimentos'])
+                .map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('modal-transaction').classList.remove('hidden');
+            document.getElementById('input-amount').focus();
+        }
+        function closeModal() { document.getElementById('modal-transaction').classList.add('hidden'); }
+        function closeGoalModal() { document.getElementById('modal-goal').classList.add('hidden'); }
+        function saveTransaction() {
+            const amount = parseFloat(document.getElementById('input-amount').value);
+            const desc = document.getElementById('input-desc').value;
+            if (!amount || !desc) return;
+            transactions.push({ id: Date.now(), amount: currentType === 'expense' ? -amount : amount, desc, category: document.getElementById('input-cat').value, date: new Date().toISOString() });
+            localStorage.setItem('fdb_transactions', JSON.stringify(transactions));
+            closeModal();
+            updateUI();
+        }
+        function renderCategoryTables() {
+            const container = document.getElementById('category-list');
+            container.innerHTML = '';
+            const cats = [...new Set(transactions.map(t => t.category))];
+            cats.forEach(cat => {
+                const items = transactions.filter(t => t.category === cat);
+                const sum = items.reduce((acc, i) => acc + i.amount, 0);
+                container.innerHTML += `<div class="glass-card rounded-2xl overflow-hidden mb-4">
+                    <div class="p-4 bg-gray-50 flex justify-between font-bold border-b"><span>${cat}</span><span class="${sum < 0 ? 'text-rose-500' : 'text-emerald-500'}">${formatCurrency(sum)}</span></div>
+                    <div class="p-2">${items.map(i => `<div class="flex justify-between p-2 text-xs border-b last:border-0"><span class="text-gray-400">${new Date(i.date).toLocaleDateString()}</span><span class="flex-1 px-4">${i.desc}</span><span class="font-bold">${formatCurrency(i.amount)}</span></div>`).join('')}</div>
+                </div>`;
+            });
+        }
+        function loadSettingsToUI() { document.getElementById('set-user-name').value = userSettings.name; }
+        function saveUserSettings() {
+            userSettings.name = document.getElementById('set-user-name').value;
+            if (document.getElementById('set-user-pass').value) userSettings.password = document.getElementById('set-user-pass').value;
+            localStorage.setItem('fdb_user', JSON.stringify(userSettings));
+            alert('Configurações salvas!');
+            completeLogin();
+        }
+        async function processMagicImport() {
+            const text = document.getElementById('import-input').value;
+            if (!text) return;
+            document.getElementById('import-loader').classList.remove('hidden');
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `JSON do extrato: ${text}` }] }],
+                        systemInstruction: { parts: [{ text: `Retorne apenas JSON array: [{"desc":string, "amount":number, "category":string}].` }] }
+                    })
+                });
+                const data = await response.json();
+                const items = JSON.parse(data.candidates[0].content.parts[0].text);
+                items.forEach(i => transactions.push({ ...i, id: Date.now()+Math.random(), date: new Date().toISOString() }));
+                localStorage.setItem('fdb_transactions', JSON.stringify(transactions));
+                alert('Importação concluída!');
+                toggleView('home');
+            } catch (e) { alert('Verifique sua conexão e tente novamente.'); }
+            document.getElementById('import-loader').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
